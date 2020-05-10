@@ -36,6 +36,8 @@ public class GreetingClient {
 
         doServerStreamingCall(channel);
 
+        doServerStreamingCallWithNonBlocking(channel);
+
         doClientStreamingCall(channel);
 
         doBiDiStreamingCall(channel);
@@ -88,6 +90,48 @@ public class GreetingClient {
                     System.out.println(greetManyTimesResponse.getResult());
                 });
 
+    }
+
+    private void doServerStreamingCallWithNonBlocking(ManagedChannel channel) {
+        GreetServiceGrpc.GreetServiceStub greetClient = GreetServiceGrpc.newStub(channel);
+
+        CountDownLatch latch = new CountDownLatch(1);
+
+        // Server Streaming
+        // we prepare the request
+        GreetManyTimesRequest greetManyTimesRequest =
+                GreetManyTimesRequest.newBuilder()
+                        .setGreeting(Greeting.newBuilder().setFirstName("Stephane"))
+                        .build();
+
+        // Client receive Server streaming in Non blocking manner
+        greetClient.greetManyTimes(greetManyTimesRequest, new StreamObserver<GreetManyTimesResponse>() {
+            @Override
+            public void onNext(GreetManyTimesResponse value) {
+                // we get a response from the server
+                System.out.println("Response from server: " + value.getResult());
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                // we get an error from the server
+                latch.countDown();
+            }
+
+            @Override
+            public void onCompleted() {
+                // the server is done sending us data
+                // onCompleted will be called right after onNext()
+                System.out.println("Server has completed sending us something");
+                latch.countDown();
+            }
+        });
+
+        try {
+            latch.await(15L, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     private void doClientStreamingCall(ManagedChannel channel) {
